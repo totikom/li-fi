@@ -9,9 +9,11 @@ use stm32f7xx_hal as hal;
 
 use crate::hal::{pac, prelude::*, delay::Delay};
 use cortex_m_rt::entry;
+use rtt_target::{rprintln, rtt_init_print};
 
 #[entry]
 fn main() -> ! {
+    rtt_init_print!();
     let p = pac::Peripherals::take().unwrap();
     let cp = cortex_m::Peripherals::take().unwrap();
 
@@ -52,6 +54,7 @@ fn main() -> ! {
                 interval /= 3;
                 interval *= 2;
             } else {
+                rprintln!("Tick!");
                 interval = 500;
             }
     }
