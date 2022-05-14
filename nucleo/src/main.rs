@@ -7,7 +7,7 @@ use panic_halt as _;
 
 use stm32f7xx_hal as hal;
 
-use crate::hal::{pac, prelude::*, delay::Delay};
+use crate::hal::{pac, prelude::*, delay::Delay, adc::Adc};
 use cortex_m_rt::entry;
 use rtt_target::{rprintln, rtt_init_print};
 
@@ -29,6 +29,11 @@ fn main() -> ! {
 
     // Create a delay abstraction based on SysTick
     let mut delay = Delay::new(cp.SYST, clocks);
+
+    let adc = p.ADC1;
+    let mut apb = rcc.apb2;
+
+    let adc = Adc::adc1(adc,&mut apb, clocks, 12, false);
 
     let mut interval: u32 = 500;
     loop {
