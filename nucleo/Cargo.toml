@@ -9,8 +9,10 @@ edition = "2018"
 [dependencies]
 cortex-m = "0.7.4"
 cortex-m-rt = "0.6.7"
+micromath = "2.0.0"
 panic-halt = "0.2.0"
 rtt-target = {version = "0.3.1", features = ["cortex-m"]}
+tinyvec = {version = "1.6.0", features = ["rustc_1_57"]}
 
 [dependencies.stm32f7xx-hal]
 version = "0.6.0"
