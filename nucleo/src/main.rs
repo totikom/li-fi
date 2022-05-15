@@ -89,21 +89,21 @@ fn main() -> ! {
                 red.toggle();
             }
 
-            let high_mean = high.iter().sum::<u16>() as f32 / high.len() as f32;
+            let high_mean = high.iter().map(|x| *x as f32).sum::<f32>() as f32 / high.len() as f32;
             let high_std = (high
                 .iter()
                 .fold(0.0, |acc, &x| acc + (x as f32 - high_mean).powi(2))
                 / high.len() as f32)
                 .sqrt();
 
-            let low_mean = low.iter().sum::<u16>() as f32 / low.len() as f32;
+            let low_mean = low.iter().map(|x| *x as f32).sum::<f32>() as f32 / low.len() as f32;
             let low_std = (low
                 .iter()
                 .fold(0.0, |acc, &x| acc + (x as f32 - low_mean).powi(2))
                 / low.len() as f32)
                 .sqrt();
 
-            let border = (high_mean + low_mean) as u16 / 2;
+            let border = ((high_mean + low_mean) / 2.0) as u16;
 
             let enc = Encoder::new(ecc);
             let dec = Decoder::new(ecc);
