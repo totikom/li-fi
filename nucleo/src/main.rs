@@ -16,13 +16,13 @@ use reed_solomon::Encoder;
 use rtt_target::rtt_init;
 use tinyvec::ArrayVec;
 
-    const SAMPLE_COUNT: usize = 100;
-    const MESSAGE: [u8; 11] = *b"Hello, led!";
-    const INTERVALS: [u32; 13] = [
-        1, 10, 100, 200, 300, 400, 500, 1000, 2000, 4000, 8000, 16000, 32000,
-    ];
-    const ECC_LENGTHS: [usize; 6] = [4, 8, 16, 32, 64, 128];
-
+const SAMPLE_COUNT: usize = 1000;
+const REPEAT: usize = 1000;
+const MESSAGE: [u8; 11] = *b"Hello, led!";
+const INTERVALS: [u32; 16] = [
+    1, 10, 100, 200, 300, 400, 500, 1000, 2000, 4000, 8000, 16000, 32000, 64000, 128000, 256000,
+];
+const ECC_LENGTHS: [usize; 6] = [4, 8, 16, 32, 64, 128];
 
 #[entry]
 fn main() -> ! {
@@ -64,11 +64,15 @@ fn main() -> ! {
     let mut low = ArrayVec::<[u16; SAMPLE_COUNT]>::default();
     let mut received_message = ArrayVec::<[u8; 1000]>::default();
 
-    for ecc in ECC_LENGTHS {
-        for interval in INTERVALS {
+    write!(
+        &mut channel,
+        "timestamp,us,high_mean,high_std,low_mean,low_std,ecc,success_count\n",
+    )
+    .unwrap();
+    for interval in INTERVALS {
+        for ecc in ECC_LENGTHS {
             high.clear();
             low.clear();
-            received_message.clear();
 
             for _ in 0..SAMPLE_COUNT {
                 green.set_low();
@@ -108,45 +112,41 @@ fn main() -> ! {
 
             let enc_message = *enc_message;
 
-            for byte in enc_message.iter() {
-                let mut received_byte = 0;
-                for idx in 0..7 {
-                    if byte & (1 << idx) != 0 {
-                        green.set_high();
-                    } else {
-                        green.set_low();
+            let mut success_count: f32 = 0.0;
+            for _ in 0..REPEAT {
+                received_message.clear();
+                for byte in enc_message.iter() {
+                    let mut received_byte = 0;
+                    for idx in 0..7 {
+                        if byte & (1 << idx) != 0 {
+                            green.set_high();
+                        } else {
+                            green.set_low();
+                        }
+
+                        delay.delay_us(interval);
+
+                        let val: u16 = adc.read(&mut a6_in).unwrap();
+                        if val > border {
+                            received_byte = received_byte | (1 << idx);
+                        }
                     }
-
-                    delay.delay_us(interval);
-
-                    let val: u16 = adc.read(&mut a6_in).unwrap();
-                    if val > border {
-                        received_byte = received_byte | (1 << idx);
-                    }
+                    received_message.push(received_byte);
                 }
-                received_message.push(received_byte);
+
+                success_count += if dec.correct(&mut received_message, None).is_ok() {
+                    1.0
+                } else {
+                    0.0
+                };
             }
-
-            match dec.correct(&mut received_message, None) {
-                Ok(recovered) => {
-                    write!(
-                            &mut channel,
-                            "interval: {}us, high mean: {} +/- {}, low mean: {} +/- {}, ecc len: {} message: ",
-                            interval, high_mean, high_std, low_mean, low_std, ecc,
-                        )
-                            .unwrap();
-                    channel.write(&recovered.data());
-                    write!(&mut channel, "\n").unwrap();
-                }
-                Err(_) => {
-                    write!(
-                            &mut channel,
-                            "interval: {}us, high mean: {} +/- {}, low mean: {} +/- {}, ecc len: {}, message decoding failed\n",
-                            interval, high_mean, high_std, low_mean, low_std, ecc,
-                        )
-                            .unwrap();
-                }
-            }
+            let result: f32 = success_count / REPEAT as f32;
+            write!(
+                &mut channel,
+                ",{},{},{},{},{},{},{}\n",
+                interval, high_mean, high_std, low_mean, low_std, ecc, result
+            )
+            .unwrap();
         }
     }
     green.set_low();
