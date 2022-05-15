@@ -3,7 +3,7 @@
 #![no_main]
 #![no_std]
 
-use panic_halt as _;
+use panic_rtt_target as _;
 
 use stm32f7xx_hal as hal;
 
