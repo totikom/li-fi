@@ -15,7 +15,7 @@ use panic_rtt_target as _;
     //stm32f3xx_hal::{prelude::*, pac},
     //switch_hal::ToggleableOutputSwitch,
 //};
-use stm32f3xx_hal::{self as hal, pac, prelude::*};
+use stm32f3xx_hal::{self as hal, pac, prelude::*, delay::Delay, adc, adc::Adc};
 
 use core::fmt::Write;
 use cortex_m_rt::entry;
@@ -46,122 +46,50 @@ fn main() -> ! {
     let mut channel = channels.up.0;
     let p = pac::Peripherals::take().unwrap();
     let cp = cortex_m::Peripherals::take().unwrap();
+    let mut flash = p.FLASH.constrain();
 
-    //let gpiob = p.GPIOB.split();
+    // Set up the system clock. We want to run at 48MHz for this one.
+    let mut rcc = p.RCC.constrain();
+    let clocks = rcc.cfgr.sysclk(48.MHz()).freeze(&mut flash.acr);
 
-    //let mut red = gpiob.pb14.into_push_pull_output();
-    //let mut green = gpiob.pb0.into_push_pull_output();
-    ////let mut blue = gpiob.pb7.into_push_pull_output();
+    let mut gpioe = p.GPIOE.split(&mut rcc.ahb);
 
-    //let mut a6_in = gpiob.pb1.into_analog();
+    let mut led = gpioe
+            .pe13
+            .into_push_pull_output(&mut gpioe.moder, &mut gpioe.otyper);
 
-    //// Set up the system clock. We want to run at 48MHz for this one.
-    //let rcc = p.RCC.constrain();
-    //let clocks = rcc.cfgr.sysclk(216.MHz()).freeze();
 
-    //// Create a delay abstraction based on SysTick
-    //let mut delay = Delay::new(cp.SYST, clocks);
+    // Create a delay abstraction based on SysTick
+    let mut delay = Delay::new(cp.SYST, clocks);
 
-    //let adc = p.ADC1;
-    //let mut apb = rcc.apb2;
+    let adc = p.ADC1;
+    let common_adc = adc::CommonAdc::new(p.ADC1_2, &clocks, &mut rcc.ahb);
 
-    //let mut adc = Adc::adc1(adc, &mut apb, clocks, 12, false);
+    let mut adc = Adc::new(adc, adc::config::Config::default(), &clocks, &common_adc);
 
-    //green.set_low();
+    // Set up pin PA0 as analog pin.
+    // This pin is connected to the user button on the stm32f3discovery board.
+    let mut gpioa = p.GPIOA.split(&mut rcc.ahb);
+    let mut analog_pin = gpioa.pa0.into_analog(&mut gpioa.moder, &mut gpioa.pupdr);
 
-    //let mut high = ArrayVec::<[u16; SAMPLE_COUNT]>::default();
-    //let mut low = ArrayVec::<[u16; SAMPLE_COUNT]>::default();
-    //let mut received_message = ArrayVec::<[u8; 1000]>::default();
 
-    //write!(
-        //&mut channel,
-        //"timestamp,us,high_mean,high_std,low_mean,low_std,ecc,success_count\n",
-    //)
-    //.unwrap();
-    //for interval in INTERVALS {
-        //for ecc in ECC_LENGTHS {
-            //high.clear();
-            //low.clear();
-
-            //for _ in 0..SAMPLE_COUNT {
-                //green.set_low();
-                //delay.delay_us(interval);
-
-                //let val: u16 = adc.read(&mut a6_in).unwrap();
-                //low.push(val);
-
-                //green.set_high();
-                //delay.delay_us(interval);
-
-                //let val: u16 = adc.read(&mut a6_in).unwrap();
-                //high.push(val);
-                //red.toggle();
-            //}
-
-            //let high_mean = high.iter().map(|x| *x as f32).sum::<f32>() as f32 / high.len() as f32;
-            //let high_std = (high
-                //.iter()
-                //.fold(0.0, |acc, &x| acc + (x as f32 - high_mean).powi(2))
-                /// high.len() as f32)
-                //.sqrt();
-
-            //let low_mean = low.iter().map(|x| *x as f32).sum::<f32>() as f32 / low.len() as f32;
-            //let low_std = (low
-                //.iter()
-                //.fold(0.0, |acc, &x| acc + (x as f32 - low_mean).powi(2))
-                /// low.len() as f32)
-                //.sqrt();
-
-            //let border = ((high_mean + low_mean) / 2.0) as u16;
-
-            //let enc = Encoder::new(ecc);
-            //let dec = Decoder::new(ecc);
-
-            //let enc_message = enc.encode(&MESSAGE);
-
-            //let enc_message = *enc_message;
-
-            //let mut success_count: f32 = 0.0;
-            //for _ in 0..REPEAT {
-                //received_message.clear();
-                //for byte in enc_message.iter() {
-                    //let mut received_byte = 0;
-                    //for idx in 0..7 {
-                        //if byte & (1 << idx) != 0 {
-                            //green.set_high();
-                        //} else {
-                            //green.set_low();
-                        //}
-
-                        //delay.delay_us(interval);
-
-                        //let val: u16 = adc.read(&mut a6_in).unwrap();
-                        //if val > border {
-                            //received_byte = received_byte | (1 << idx);
-                        //}
-                    //}
-                    //received_message.push(received_byte);
-                //}
-
-                //success_count += if dec.correct(&mut received_message, None).is_ok() {
-                    //1.0
-                //} else {
-                    //0.0
-                //};
-            //}
-            //let result: f32 = success_count / REPEAT as f32;
-            //write!(
-                //&mut channel,
-                //",{},{},{},{},{},{},{}\n",
-                //interval, high_mean, high_std, low_mean, low_std, ecc, result
-            //)
-            //.unwrap();
-        //}
-    //}
-    //green.set_low();
+    write!(
+        &mut channel,
+        "Hello!\n",
+    )
+    .unwrap();
 
     loop {
-        //red.toggle();
-        //delay.delay_ms(500u32);
+        led.toggle();
+        delay.delay_ms(1000u32);
+        let adc_data: u16 = adc.read(&mut analog_pin).unwrap();
+    write!(
+        &mut channel,
+        "ADC reads {}\n",
+        adc_data,
+    )
+    .unwrap();
+
+
     }
 }
