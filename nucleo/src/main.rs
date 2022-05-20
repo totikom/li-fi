@@ -42,7 +42,7 @@ fn main() -> ! {
 
     let mut red = gpiob.pb14.into_push_pull_output();
     let mut green = gpiob.pb0.into_push_pull_output();
-    //let mut blue = gpiob.pb7.into_push_pull_output();
+    let mut blue = gpiob.pb7.into_push_pull_output();
 
     let mut a6_in = gpiob.pb1.into_analog();
 
@@ -74,6 +74,7 @@ fn main() -> ! {
             high.clear();
             low.clear();
 
+            red.set_high();
             for _ in 0..SAMPLE_COUNT {
                 green.set_low();
                 delay.delay_us(interval);
@@ -86,8 +87,8 @@ fn main() -> ! {
 
                 let val: u16 = adc.read(&mut a6_in).unwrap();
                 high.push(val);
-                red.toggle();
             }
+            red.set_low();
 
             let high_mean = high.iter().map(|x| *x as f32).sum::<f32>() as f32 / high.len() as f32;
             let high_std = (high
@@ -115,6 +116,7 @@ fn main() -> ! {
             let mut success_count: f32 = 0.0;
             for _ in 0..REPEAT {
                 received_message.clear();
+                blue.set_high();
                 for byte in enc_message.iter() {
                     let mut received_byte = 0;
                     for idx in 0..7 {
@@ -133,6 +135,7 @@ fn main() -> ! {
                     }
                     received_message.push(received_byte);
                 }
+                blue.set_low();
 
                 success_count += if dec.correct(&mut received_message, None).is_ok() {
                     1.0
@@ -140,6 +143,7 @@ fn main() -> ! {
                     0.0
                 };
             }
+
             let result: f32 = success_count / REPEAT as f32;
             write!(
                 &mut channel,
