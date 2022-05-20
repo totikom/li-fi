@@ -1,10 +1,10 @@
 [default.probe]
 # USB vendor ID
-# usb_vid = "1337"
+usb_vid = "0483"
 # USB product ID
-# usb_pid = "1337"
+usb_pid = "374b"
 # Serial number
-# serial = "12345678"
+serial = "066AFF343137524157162254"
 # The protocol to be used for communicating with the target.
 #protocol = "Swd"
 # The speed in kHz of the data link to the target.
