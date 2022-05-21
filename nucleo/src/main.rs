@@ -43,6 +43,7 @@ fn main() -> ! {
     let mut red = gpiob.pb14.into_push_pull_output();
     let mut green = gpiob.pb0.into_push_pull_output();
     let mut blue = gpiob.pb7.into_push_pull_output();
+    let mut led = gpiob.pb2.into_push_pull_output();
 
     let mut a6_in = gpiob.pb1.into_analog();
 
@@ -58,7 +59,7 @@ fn main() -> ! {
 
     let mut adc = Adc::adc1(adc, &mut apb, clocks, 12, false);
 
-    green.set_low();
+    led.set_low();
 
     let mut high = ArrayVec::<[u16; SAMPLE_COUNT]>::default();
     let mut low = ArrayVec::<[u16; SAMPLE_COUNT]>::default();
@@ -69,6 +70,7 @@ fn main() -> ! {
         "timestamp,us,high_mean,high_std,low_mean,low_std,ecc,success_count\n",
     )
     .unwrap();
+
     for interval in INTERVALS {
         for ecc in ECC_LENGTHS {
             high.clear();
@@ -76,18 +78,19 @@ fn main() -> ! {
 
             red.set_high();
             for _ in 0..SAMPLE_COUNT {
-                green.set_low();
+                led.set_low();
                 delay.delay_us(interval);
 
                 let val: u16 = adc.read(&mut a6_in).unwrap();
                 low.push(val);
 
-                green.set_high();
+                led.set_high();
                 delay.delay_us(interval);
 
                 let val: u16 = adc.read(&mut a6_in).unwrap();
                 high.push(val);
             }
+
             red.set_low();
 
             let high_mean = high.iter().map(|x| *x as f32).sum::<f32>() as f32 / high.len() as f32;
@@ -121,9 +124,9 @@ fn main() -> ! {
                     let mut received_byte = 0;
                     for idx in 0..7 {
                         if byte & (1 << idx) != 0 {
-                            green.set_high();
+                            led.set_high();
                         } else {
-                            green.set_low();
+                            led.set_low();
                         }
 
                         delay.delay_us(interval);
@@ -137,11 +140,13 @@ fn main() -> ! {
                 }
                 blue.set_low();
 
+                green.set_high();
                 success_count += if dec.correct(&mut received_message, None).is_ok() {
                     1.0
                 } else {
                     0.0
                 };
+                green.set_low();
             }
 
             let result: f32 = success_count / REPEAT as f32;
@@ -153,7 +158,7 @@ fn main() -> ! {
             .unwrap();
         }
     }
-    green.set_low();
+    led.set_low();
 
     loop {
         red.toggle();
