@@ -7,7 +7,7 @@ use panic_rtt_target as _;
 
 use stm32f7xx_hal as hal;
 
-use crate::hal::{adc::Adc, delay::Delay, pac, prelude::*};
+use crate::hal::{adc::Adc, adc::SampleTime, delay::Delay, pac, prelude::*};
 use core::fmt::Write;
 use cortex_m_rt::entry;
 use micromath::F32Ext;
@@ -47,7 +47,7 @@ fn main() -> ! {
 
     let mut a6_in = gpiob.pb1.into_analog();
 
-    // Set up the system clock. We want to run at 48MHz for this one.
+    // Set up the system clock. We want to run at 216MHz for this one.
     let rcc = p.RCC.constrain();
     let clocks = rcc.cfgr.sysclk(216.MHz()).freeze();
 
@@ -58,6 +58,8 @@ fn main() -> ! {
     let mut apb = rcc.apb2;
 
     let mut adc = Adc::adc1(adc, &mut apb, clocks, 12, false);
+
+    adc.set_sample_time(SampleTime::T_15);
 
     led.set_low();
 
@@ -93,14 +95,14 @@ fn main() -> ! {
 
             red.set_low();
 
-            let high_mean = high.iter().map(|x| *x as f32).sum::<f32>() as f32 / high.len() as f32;
+            let high_mean = high.iter().map(|x| *x as f32).sum::<f32>() / high.len() as f32;
             let high_std = (high
                 .iter()
                 .fold(0.0, |acc, &x| acc + (x as f32 - high_mean).powi(2))
                 / high.len() as f32)
                 .sqrt();
 
-            let low_mean = low.iter().map(|x| *x as f32).sum::<f32>() as f32 / low.len() as f32;
+            let low_mean = low.iter().map(|x| *x as f32).sum::<f32>() / low.len() as f32;
             let low_std = (low
                 .iter()
                 .fold(0.0, |acc, &x| acc + (x as f32 - low_mean).powi(2))
@@ -122,7 +124,7 @@ fn main() -> ! {
                 blue.set_high();
                 for byte in enc_message.iter() {
                     let mut received_byte = 0;
-                    for idx in 0..7 {
+                    for idx in 0..8 {
                         if byte & (1 << idx) != 0 {
                             led.set_high();
                         } else {
@@ -141,19 +143,24 @@ fn main() -> ! {
                 blue.set_low();
 
                 green.set_high();
-                success_count += if dec.correct(&mut received_message, None).is_ok() {
-                    1.0
-                } else {
-                    0.0
+                let decoded = dec.correct(&mut received_message, None);
+                success_count += match decoded {
+                    Ok(msg) => {
+                        if msg.data() == MESSAGE {
+                            1.0 / REPEAT as f32
+                        } else {
+                            0.0
+                        }
+                    }
+                    Err(_) => 0.0,
                 };
                 green.set_low();
             }
 
-            let result: f32 = success_count / REPEAT as f32;
             write!(
                 &mut channel,
                 ",{},{},{},{},{},{},{}\n",
-                interval, high_mean, high_std, low_mean, low_std, ecc, result
+                interval, high_mean, high_std, low_mean, low_std, ecc, success_count
             )
             .unwrap();
         }
