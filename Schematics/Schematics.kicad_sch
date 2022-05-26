@@ -1,0 +1,49 @@
+(kicad_sch (version 20211123) (generator eeschema)
+
+  (uuid a63e6ec9-fb89-40f1-b99b-f3ae8ba8027e)
+
+  (paper "A4")
+
+  (title_block
+    (title "Li-Fi")
+  )
+
+  (lib_symbols
+  )
+
+
+  (sheet (at 33.02 57.15) (size 76.2 71.12) (fields_autoplaced)
+    (stroke (width 0.1524) (type solid) (color 0 0 0 0))
+    (fill (color 0 0 0 0.0000))
+    (uuid 6a7e0197-4498-4bb5-b9b3-45c8cc2977e5)
+    (property "Sheet name" "Nucleo" (id 0) (at 33.02 56.4384 0)
+      (effects (font (size 1.27 1.27)) (justify left bottom))
+    )
+    (property "Sheet file" "nucleo.kicad_sch" (id 1) (at 33.02 128.8546 0)
+      (effects (font (size 1.27 1.27)) (justify left top))
+    )
+  )
+
+  (sheet_instances
+    (path "/" (page "1"))
+    (path "/6a7e0197-4498-4bb5-b9b3-45c8cc2977e5" (page "2"))
+  )
+
+  (symbol_instances
+    (path "/6a7e0197-4498-4bb5-b9b3-45c8cc2977e5/aa12f10d-ea98-4301-af53-653d25168344"
+      (reference "D1") (unit 1) (value "LED") (footprint "")
+    )
+    (path "/6a7e0197-4498-4bb5-b9b3-45c8cc2977e5/a582ecff-824b-4397-ab94-6357af955a78"
+      (reference "R1") (unit 1) (value "220") (footprint "")
+    )
+    (path "/6a7e0197-4498-4bb5-b9b3-45c8cc2977e5/5b96fe4f-d14a-4af5-8c8a-d9119c863b55"
+      (reference "R2") (unit 1) (value "R_Photo") (footprint "")
+    )
+    (path "/6a7e0197-4498-4bb5-b9b3-45c8cc2977e5/fb0f9a31-2d59-4102-9444-d26503e7a270"
+      (reference "R3") (unit 1) (value "460") (footprint "")
+    )
+    (path "/6a7e0197-4498-4bb5-b9b3-45c8cc2977e5/5857094b-c956-4655-8cde-f8bc041f93ee"
+      (reference "U1") (unit 1) (value "NUCLEO144-F767ZI") (footprint "Module:ST_Morpho_Connector_144_STLink")
+    )
+  )
+)
