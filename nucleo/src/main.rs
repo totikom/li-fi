@@ -12,17 +12,23 @@ use core::fmt::Write;
 use cortex_m_rt::entry;
 use micromath::F32Ext;
 use reed_solomon::Decoder;
-use reed_solomon::Encoder;
 use rtt_target::rtt_init;
 use tinyvec::ArrayVec;
 
-const SAMPLE_COUNT: usize = 1000;
-const REPEAT: usize = 1000;
 const MESSAGE: [u8; 11] = *b"Hello, led!";
-const INTERVALS: [u32; 16] = [
-    1, 10, 100, 200, 300, 400, 500, 1000, 2000, 4000, 8000, 16000, 32000, 64000, 128000, 256000,
-];
-const ECC_LENGTHS: [usize; 6] = [4, 8, 16, 32, 64, 128];
+const DELAY: u32 = 10_000;
+const ECC_LENGTH: usize = 8;
+
+const CUT_OFF: u16 = 350;
+const TEST_DELAY: u32 = DELAY / 2;
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+enum State {
+    WaitingForStart1,
+    WaitingForStart0,
+    Receiving,
+    SendingResult,
+}
 
 #[entry]
 fn main() -> ! {
@@ -45,9 +51,10 @@ fn main() -> ! {
     let mut red = gpiob.pb14.into_push_pull_output();
     let mut green = gpiob.pb0.into_push_pull_output();
     let mut blue = gpiob.pb7.into_push_pull_output();
-    let mut led = gpioc.pc0.into_push_pull_output();
 
     let mut adc_in = gpioa.pa3.into_analog();
+
+    let btn = gpioc.pc13.into_floating_input();
 
     // Set up the system clock. We want to run at 216MHz for this one.
     let rcc = p.RCC.constrain();
@@ -61,116 +68,90 @@ fn main() -> ! {
 
     let mut adc = Adc::adc1(adc, &mut apb, clocks, 12, false);
 
-    adc.set_sample_time(SampleTime::T_15);
+    adc.set_sample_time(SampleTime::T_3);
 
-    led.set_low();
+    let dec = Decoder::new(ECC_LENGTH);
 
-    let mut high = ArrayVec::<[u16; SAMPLE_COUNT]>::default();
-    let mut low = ArrayVec::<[u16; SAMPLE_COUNT]>::default();
-    let mut received_message = ArrayVec::<[u8; 1000]>::default();
+    let mut state = State::WaitingForStart1;
+    let mut received_message = ArrayVec::<[u8; 100]>::default();
+    red.set_high();
 
-    write!(
-        &mut channel,
-        "timestamp,us,high_mean,high_std,low_mean,low_std,ecc,success_count\n",
-    )
-    .unwrap();
+    write!(&mut channel, "Started listening!\n").unwrap();
 
-    for interval in INTERVALS {
-        for ecc in ECC_LENGTHS {
-            high.clear();
-            low.clear();
-
-            red.set_high();
-            for _ in 0..SAMPLE_COUNT {
-                led.set_low();
-                delay.delay_us(interval);
-
-                let val: u16 = adc.read(&mut adc_in).unwrap();
-                low.push(val);
-
-                led.set_high();
-                delay.delay_us(interval);
-
-                let val: u16 = adc.read(&mut adc_in).unwrap();
-                high.push(val);
-            }
-
-            red.set_low();
-
-            let high_mean = high.iter().map(|x| *x as f32).sum::<f32>() / high.len() as f32;
-            let high_std = (high
-                .iter()
-                .fold(0.0, |acc, &x| acc + (x as f32 - high_mean).powi(2))
-                / high.len() as f32)
-                .sqrt();
-
-            let low_mean = low.iter().map(|x| *x as f32).sum::<f32>() / low.len() as f32;
-            let low_std = (low
-                .iter()
-                .fold(0.0, |acc, &x| acc + (x as f32 - low_mean).powi(2))
-                / low.len() as f32)
-                .sqrt();
-
-            let border = ((high_mean + low_mean) / 2.0) as u16;
-
-            let enc = Encoder::new(ecc);
-            let dec = Decoder::new(ecc);
-
-            let enc_message = enc.encode(&MESSAGE);
-
-            let enc_message = *enc_message;
-
-            let mut success_count: f32 = 0.0;
-            for _ in 0..REPEAT {
-                received_message.clear();
-                blue.set_high();
-                for byte in enc_message.iter() {
+    loop {
+        if btn.is_low() {
+            match state {
+                State::WaitingForStart1 => {
+                    let val: u16 = adc.read(&mut adc_in).unwrap();
+                    if val > CUT_OFF {
+                        state = State::WaitingForStart0;
+                        red.set_low();
+                        blue.set_high();
+                        delay.delay_us(DELAY);
+                    } else {
+                        delay.delay_us(TEST_DELAY);
+                    }
+                }
+                State::WaitingForStart0 => {
+                    let val: u16 = adc.read(&mut adc_in).unwrap();
+                    if val > CUT_OFF {
+                        state = State::WaitingForStart1;
+                        red.set_high();
+                        delay.delay_us(TEST_DELAY);
+                    } else {
+                        state = State::Receiving;
+                        blue.set_low();
+                        green.set_high();
+                        delay.delay_us(DELAY);
+                    }
+                }
+                State::Receiving => {
                     let mut received_byte = 0;
                     for idx in 0..8 {
-                        if byte & (1 << idx) != 0 {
-                            led.set_high();
-                        } else {
-                            led.set_low();
+                        let mut sum = 0;
+                        for _ in 0..3 {
+                            let val: u16 = adc.read(&mut adc_in).unwrap();
+                            if val > CUT_OFF {
+                                sum += 1;
+                            }
+                            delay.delay_us(DELAY);
                         }
-
-                        delay.delay_us(interval);
-
-                        let val: u16 = adc.read(&mut adc_in).unwrap();
-                        if val > border {
+                        if sum > 1 {
                             received_byte = received_byte | (1 << idx);
                         }
                     }
                     received_message.push(received_byte);
+                    if received_message.len() >= MESSAGE.len() + ECC_LENGTH {
+                        state = State::SendingResult;
+                        green.set_low();
+                        red.set_high();
+                    }
                 }
-                blue.set_low();
-
-                green.set_high();
-                let decoded = dec.correct(&mut received_message, None);
-                success_count += match decoded {
-                    Ok(msg) => {
-                        if msg.data() == MESSAGE {
-                            1.0 / REPEAT as f32
-                        } else {
-                            0.0
+                State::SendingResult => {
+                    let decoded = dec.correct(&mut received_message, None);
+                    match decoded {
+                        Ok(msg) => {
+                            write!(&mut channel, "Received message: ").unwrap();
+                            channel.write(msg.data());
+                            write!(&mut channel, "\n",).unwrap();
+                        }
+                        Err(_) => {
+                            write!(
+                                &mut channel,
+                                "Failed to decode message: {:?}\n",
+                                received_message
+                            )
+                            .unwrap();
                         }
                     }
-                    Err(_) => 0.0,
-                };
-                green.set_low();
+                    state = State::WaitingForStart1;
+                    received_message.clear();
+                }
             }
-
-            write!(
-                &mut channel,
-                ",{},{},{},{},{},{},{}\n",
-                interval, high_mean, high_std, low_mean, low_std, ecc, success_count
-            )
-            .unwrap();
+        } else {
+            let val: u16 = adc.read(&mut adc_in).unwrap();
+            write!(&mut channel, "ADC: {}\n", val).unwrap();
+            delay.delay_ms(100_u32);
         }
-    }
-    led.set_low();
-
-    loop {
-        red.toggle();
-        delay.delay_ms(500u32);
     }
 }
