@@ -38,14 +38,16 @@ fn main() -> ! {
     let p = pac::Peripherals::take().unwrap();
     let cp = cortex_m::Peripherals::take().unwrap();
 
+    let gpioa = p.GPIOA.split();
     let gpiob = p.GPIOB.split();
+    let gpioc = p.GPIOC.split();
 
     let mut red = gpiob.pb14.into_push_pull_output();
     let mut green = gpiob.pb0.into_push_pull_output();
     let mut blue = gpiob.pb7.into_push_pull_output();
-    let mut led = gpiob.pb2.into_push_pull_output();
+    let mut led = gpioc.pc0.into_push_pull_output();
 
-    let mut a6_in = gpiob.pb1.into_analog();
+    let mut adc_in = gpioa.pa3.into_analog();
 
     // Set up the system clock. We want to run at 216MHz for this one.
     let rcc = p.RCC.constrain();
@@ -83,13 +85,13 @@ fn main() -> ! {
                 led.set_low();
                 delay.delay_us(interval);
 
-                let val: u16 = adc.read(&mut a6_in).unwrap();
+                let val: u16 = adc.read(&mut adc_in).unwrap();
                 low.push(val);
 
                 led.set_high();
                 delay.delay_us(interval);
 
-                let val: u16 = adc.read(&mut a6_in).unwrap();
+                let val: u16 = adc.read(&mut adc_in).unwrap();
                 high.push(val);
             }
 
@@ -133,7 +135,7 @@ fn main() -> ! {
 
                         delay.delay_us(interval);
 
-                        let val: u16 = adc.read(&mut a6_in).unwrap();
+                        let val: u16 = adc.read(&mut adc_in).unwrap();
                         if val > border {
                             received_byte = received_byte | (1 << idx);
                         }
