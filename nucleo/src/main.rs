@@ -15,9 +15,9 @@ use reed_solomon::Decoder;
 use rtt_target::rtt_init;
 use tinyvec::ArrayVec;
 
-const MESSAGE: [u8; 11] = *b"Hello, led!";
-const DELAY: u32 = 10_000;
-const ECC_LENGTH: usize = 8;
+const MESSAGE: [u8; 2] = *b"He";
+const DELAY: u32 = 100_000;
+const ECC_LENGTH: usize = 1;
 
 const CUT_OFF: u16 = 350;
 const TEST_DELAY: u32 = DELAY / 2;
@@ -82,30 +82,29 @@ fn main() -> ! {
         if btn.is_low() {
             match state {
                 State::WaitingForStart1 => {
+                    red.set_high();
                     let val: u16 = adc.read(&mut adc_in).unwrap();
                     if val > CUT_OFF {
                         state = State::WaitingForStart0;
                         red.set_low();
-                        blue.set_high();
                         delay.delay_us(DELAY);
                     } else {
                         delay.delay_us(TEST_DELAY);
                     }
                 }
                 State::WaitingForStart0 => {
+                    blue.set_high();
                     let val: u16 = adc.read(&mut adc_in).unwrap();
                     if val > CUT_OFF {
-                        state = State::WaitingForStart1;
-                        red.set_high();
-                        delay.delay_us(TEST_DELAY);
+                        delay.delay_us(DELAY);
                     } else {
                         state = State::Receiving;
                         blue.set_low();
-                        green.set_high();
                         delay.delay_us(DELAY);
                     }
                 }
                 State::Receiving => {
+                    green.set_high();
                     let mut received_byte = 0;
                     for idx in 0..8 {
                         let mut sum = 0;
@@ -124,7 +123,11 @@ fn main() -> ! {
                     if received_message.len() >= MESSAGE.len() + ECC_LENGTH {
                         state = State::SendingResult;
                         green.set_low();
-                        red.set_high();
+                        delay.delay_us(DELAY);
+                    } else {
+                        state = State::WaitingForStart1;
+                        green.set_low();
+                        delay.delay_us(DELAY);
                     }
                 }
                 State::SendingResult => {
@@ -138,7 +141,7 @@ fn main() -> ! {
                         Err(_) => {
                             write!(
                                 &mut channel,
-                                "Failed to decode message: {:?}\n",
+                                "{:?}\n",
                                 received_message
                             )
                             .unwrap();

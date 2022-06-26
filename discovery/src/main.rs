@@ -15,9 +15,9 @@ use cortex_m_rt::entry;
 use reed_solomon::Encoder;
 use rtt_target::{rtt_init_print, rprintln};
 
-const MESSAGE: [u8; 11] = *b"Hello, led!";
-const DELAY: u32 = 10_000;
-const ECC_LENGTH: usize = 8;
+const MESSAGE: [u8; 2] = *b"He";
+const DELAY: u32 = 100_000;
+const ECC_LENGTH: usize = 1;
 
 #[entry]
 fn main() -> ! {
@@ -62,11 +62,13 @@ fn main() -> ! {
         if btn.is_low().unwrap() {
             red.set_high().unwrap();
             for byte in enc_message.iter() {
-                blue.set_high().unwrap();
-
                 led.set_high().unwrap();
                 delay.delay_us(DELAY);
                 led.set_low().unwrap();
+
+                red.set_low().unwrap();
+                blue.set_high().unwrap();
+
                 delay.delay_us(DELAY);
 
                 blue.set_low().unwrap();
@@ -81,12 +83,12 @@ fn main() -> ! {
                     delay.delay_us(3*DELAY);
                 }
                 led.set_low();
-                delay.delay_us(DELAY);
                 green.set_low().unwrap();
+                delay.delay_us(2*DELAY);
             }
-            red.set_low().unwrap();
             rprintln!("{:?}", enc_message);
-            delay.delay_us((MESSAGE.len() + ECC_LENGTH) as u32 * DELAY * (2 + 8 * 3 + 1) * 2);
+            //delay.delay_us((MESSAGE.len() + ECC_LENGTH) as u32 * DELAY * (2 + 8 * 3 + 1) * 2);
+            delay.delay_us((MESSAGE.len() + ECC_LENGTH) as u32 * DELAY);
         } else {
             led.toggle();
             delay.delay_ms(500_u32);
